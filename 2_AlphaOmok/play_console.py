@@ -93,8 +93,13 @@ def main():
     env = game.GameState(obstacles=obstacles_coords)
     
     # MCTS Agent setup
-    # AI uses 800 MCTS simulations, passed the static obstacles list
-    ai_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
+    if utils._cpp_lib is not None:
+        # C++ version can search much faster; we use 2000 simulations as a solid standard
+        ai_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=2000, obstacles=obstacles_actions)
+        print("[알림] C++ 최적화 MCTS 에이전트를 사용합니다 (시뮬레이션: 2000회).")
+    else:
+        ai_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
+        print("[알림] 파이썬 Heuristic MCTS 에이전트를 사용합니다 (시뮬레이션: 800회).")
     
     # Root node ID starts with (0, 180) because Black is forced to play at (10, 10)
     # Action index of (10,10) is 9*19 + 9 = 180

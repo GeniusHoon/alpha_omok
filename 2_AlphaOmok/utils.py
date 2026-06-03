@@ -1,8 +1,42 @@
 from collections import deque
-
+import os
+import ctypes
 import numpy as np
 
 ALPHABET = ' A B C D E F G H I J K L M N O P Q R S'
+
+# Load high-performance C++ shared library if available
+_cpp_lib = None
+dll_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cpp', 'omok_cpp.dll')
+if os.path.exists(dll_path):
+    try:
+        _cpp_lib = ctypes.CDLL(dll_path)
+        
+        # Configure ctypes function signatures
+        _cpp_lib.check_win_cpp.argtypes = [ctypes.POINTER(ctypes.c_int)]
+        _cpp_lib.check_win_cpp.restype = ctypes.c_int
+        
+        _cpp_lib.check_double_three_cpp.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int, ctypes.c_int]
+        _cpp_lib.check_double_three_cpp.restype = ctypes.c_bool
+        
+        _cpp_lib.evaluate_board_cpp.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+        _cpp_lib.evaluate_board_cpp.restype = ctypes.c_double
+        
+        _cpp_lib.mcts_search_cpp.argtypes = [
+            ctypes.POINTER(ctypes.c_int), # board
+            ctypes.c_int,                 # start_turn
+            ctypes.c_int,                 # num_mcts
+            ctypes.c_double,              # c_puct
+            ctypes.c_double,              # defense_weight
+            ctypes.c_double               # tau
+        ]
+        _cpp_lib.mcts_search_cpp.restype = ctypes.c_int
+        print(f"[알림] 성공적으로 C++ 최적화 DLL({dll_path})을 로드했습니다.")
+    except Exception as e:
+        print(f"[경고] C++ DLL 로드 실패: {e}. 파이썬 모드로 작동합니다.")
+else:
+    print(f"[알림] C++ 최적화 DLL을 찾을 수 없습니다. 파이썬 모드로 작동합니다.")
+
 
 
 def valid_actions(board):
@@ -31,8 +65,14 @@ def check_win(board, win_mark):
     """
     Safe check_win implementation that scans the board lines instead of summing,
     preventing issues with obstacle stones (value 2).
+    Calls C++ optimized version if DLL is loaded and board is 19x19.
     """
     board_size = len(board)
+    if _cpp_lib is not None and board_size == 19 and win_mark == 5:
+        flat_board = board.flatten().astype(np.int32)
+        board_ptr = flat_board.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        return int(_cpp_lib.check_win_cpp(board_ptr))
+        
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
     has_empty = False
     
@@ -66,8 +106,14 @@ def check_double_three(board, action_index, player):
     """
     Returns True if placing a stone at action_index for player (1 or -1)
     creates a forbidden double open three (3-3) on the board.
+    Calls C++ optimized version if DLL is loaded and board is 19x19.
     """
     board_size = len(board)
+    if _cpp_lib is not None and board_size == 19:
+        flat_board = board.flatten().astype(np.int32)
+        board_ptr = flat_board.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        return bool(_cpp_lib.check_double_three_cpp(board_ptr, int(action_index), int(player)))
+        
     r = action_index // board_size
     c = action_index % board_size
     
@@ -313,7 +359,14 @@ def evaluate_board(board, player):
     Scans the board in all 4 directions (rows, cols, diagonals, anti-diagonals)
     and sums up pattern scores for both player and opponent.
     Returns a normalized value in the range [-1.0, 1.0].
+    Calls C++ optimized version if DLL is loaded and board is 19x19.
     """
+    board_size = len(board)
+    if _cpp_lib is not None and board_size == 19:
+        flat_board = board.flatten().astype(np.int32)
+        board_ptr = flat_board.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        return float(_cpp_lib.evaluate_board_cpp(board_ptr, int(player)))
+        
     lines = get_all_lines(board)
     
     score_self = 0

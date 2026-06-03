@@ -924,3 +924,60 @@ class HeuristicMCTS(Agent):
         print('tree size:', len(self.tree))
         print('tree depth:', 0 if max_len <= 0 else max_len - 1)
 
+
+class CppHeuristicMCTS(Agent):
+    def __init__(self, board_size, num_mcts, obstacles=[]):
+        super(CppHeuristicMCTS, self).__init__(board_size)
+        self.board_size = board_size
+        self.num_mcts = num_mcts
+        self.obstacles = obstacles  # List of integer action indices
+        # Default hyperparameters, which can be modified during grid search
+        self.c_puct = 5.0
+        self.defense_weight = 1.2
+        self.tau = 2.0
+
+    def reset(self):
+        pass
+
+    def get_pi(self, root_id, board, turn, tau):
+        # 1. Reconstruct board with obstacles
+        full_board = utils.get_board(root_id, self.board_size, self.obstacles)
+        
+        # 2. Convert board array to ctypes pointer of int
+        flat_board = full_board.flatten().astype(np.int32)
+        import ctypes
+        board_ptr = flat_board.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        
+        # 3. Call optimized C++ MCTS search
+        # start_turn is 0 for Black, 1 for White
+        best_action = -1
+        if utils._cpp_lib is not None:
+            best_action = utils._cpp_lib.mcts_search_cpp(
+                board_ptr,
+                int(turn),
+                int(self.num_mcts),
+                float(self.c_puct),
+                float(self.defense_weight),
+                float(self.tau)
+            )
+        
+        # Fallback to random move if DLL fails or cannot find move
+        if best_action == -1:
+            print("[경고] C++ MCTS에서 행동을 찾지 못해 임의의 적법한 수를 선택합니다.")
+            placed = set(root_id[1:])
+            obstacle_set = set(self.obstacles)
+            legal_moves = [a for a in range(self.board_size**2) if a not in placed and a not in obstacle_set]
+            best_action = np.random.choice(legal_moves) if legal_moves else 0
+
+        pi = np.zeros(self.board_size**2, 'float')
+        pi[best_action] = 1.0
+        
+        self.visit = pi
+        self.policy = pi
+        
+        return pi
+
+    def del_parents(self, root_id):
+        pass
+
+

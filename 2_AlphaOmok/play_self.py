@@ -111,9 +111,13 @@ def main():
         env = game.GameState(obstacles=obstacles_coords)
         
         # Initialize Black (First) and White (Second) agents
-        # Pass obstacles to both agents
-        black_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
-        white_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
+        # Pass obstacles to both agents. Uses C++ agent if available.
+        if utils._cpp_lib is not None:
+            black_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=2000, obstacles=obstacles_actions)
+            white_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=2000, obstacles=obstacles_actions)
+        else:
+            black_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
+            white_agent = agents.HeuristicMCTS(board_size=19, num_mcts=800, obstacles=obstacles_actions)
         
         # Game starts with center stone placed at (10, 10) -> action index 180
         root_id = (0, 180)
