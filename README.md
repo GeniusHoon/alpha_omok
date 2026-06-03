@@ -88,8 +88,31 @@ The description of the files in the folder is as follows. (files with **bold tex
 
 <br>
 
+### 3_inha_omok
 
-## Future Work
+This folder contains the active, highly optimized console-based 19x19 Gomoku MCTS AI engine specifically developed for the school tournament. It has been stripped of unused neural network models and web server templates to keep the workspace clean.
+
+#### Key Features:
+- **Rule Compliance**: Console-based 19x19 Gomoku environment (`env_competition.py`) adhering to tournament rules (forced first-move at center `(10,10)` for Black, 3 red obstacle stones, double-three restrictions, and 5+ overline win).
+- **Heuristic MCTS**: Fast heuristic pattern-based scoring combined with MCTS rollouts.
+- **Extreme C++ Optimizations**: C++ search engine (`omok_cpp.cpp`) utilizing a pre-allocated static BSS node pool (Zero-Allocation MCTS), 32-byte cache line alignment, float calculations, and sqrt caching to achieve **~1785 Simulations Per Second (SPS)**.
+- **Tuner**: Multiprocessing grid-search tuner (`grid_search.py`) to optimize search constants.
+
+#### How to run:
+* Human vs AI Console Play:
+  ```powershell
+  python 3_inha_omok/play_console.py
+  ```
+* AI vs AI Self-Play:
+  ```powershell
+  python 3_inha_omok/play_self.py
+  ```
+* Grid Search Tuner:
+  ```powershell
+  python 3_inha_omok/grid_search.py
+  ```
+
+<br>
 
 - Apply parallel computation to improve computation speed
 - Make [Tensorflow](https://www.tensorflow.org) version of the code
