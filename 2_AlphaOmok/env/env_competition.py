@@ -191,13 +191,15 @@ class GameState:
                 
                 # Render symbol
                 if cell == 1:  # Black
-                    symbol = "●"
-                    if r == last_r and c == last_c:
-                        symbol = YELLOW + "●" + RESET
-                elif cell == -1:  # White
+                    # On dark terminals, filled circle "●" renders white and open circle "○" renders black.
+                    # We swap them so Black is represented by the open circle (dark center) and White by the filled circle.
                     symbol = "○"
                     if r == last_r and c == last_c:
                         symbol = YELLOW + "○" + RESET
+                elif cell == -1:  # White
+                    symbol = "●"
+                    if r == last_r and c == last_c:
+                        symbol = YELLOW + "●" + RESET
                 elif cell == 2:  # Obstacle
                     symbol = RED + "■" + RESET
                 else:  # Empty
