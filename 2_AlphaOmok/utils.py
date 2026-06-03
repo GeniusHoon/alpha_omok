@@ -28,35 +28,100 @@ def legal_actions(node_id, board_size):
 
 
 def check_win(board, win_mark):
-    board = board.copy()
-    num_mark = np.count_nonzero(board)
+    """
+    Safe check_win implementation that scans the board lines instead of summing,
+    preventing issues with obstacle stones (value 2).
+    """
     board_size = len(board)
-    current_grid = np.zeros([win_mark, win_mark])
-    for row in range(board_size - win_mark + 1):
-        for col in range(board_size - win_mark + 1):
-            current_grid = board[row: row + win_mark, col: col + win_mark]
-            sum_horizontal = np.sum(current_grid, axis=1)
-            sum_vertical = np.sum(current_grid, axis=0)
-            sum_diagonal_1 = np.sum(current_grid.diagonal())
-            sum_diagonal_2 = np.sum(np.flipud(current_grid).diagonal())
-
-            # Black wins! (Horizontal and Vertical)
-            if win_mark in sum_horizontal or win_mark in sum_vertical:
-                return 1
-            # Black wins! (Diagonal)
-            if win_mark == sum_diagonal_1 or win_mark == sum_diagonal_2:
-                return 1
-            # White wins! (Horizontal and Vertical)
-            if -win_mark in sum_horizontal or -win_mark in sum_vertical:
-                return 2
-            # White wins! (Diagonal)
-            if -win_mark == sum_diagonal_1 or -win_mark == sum_diagonal_2:
-                return 2
-    # Draw (board is full)
-    if num_mark == board_size * board_size:
+    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+    has_empty = False
+    
+    for r in range(board_size):
+        for c in range(board_size):
+            stone = board[r, c]
+            if stone == 0:
+                has_empty = True
+                continue
+            if stone == 2 or stone == -2:  # obstacle
+                continue
+            
+            for dr, dc in directions:
+                count = 1
+                nr, nc = r + dr, c + dc
+                while 0 <= nr < board_size and 0 <= nc < board_size and board[nr, nc] == stone:
+                    count += 1
+                    nr += dr
+                    nc += dc
+                if count >= win_mark:
+                    return 1 if stone == 1 else 2
+                    
+    # Draw (no empty spaces left)
+    if np.count_nonzero(board == 0) == 0:
         return 3
-    # If No winner or no draw
+        
     return 0
+
+
+def check_double_three(board, action_index, player):
+    """
+    Returns True if placing a stone at action_index for player (1 or -1)
+    creates a forbidden double open three (3-3) on the board.
+    """
+    board_size = len(board)
+    r = action_index // board_size
+    c = action_index % board_size
+    
+    # 1. Place stone temporarily
+    temp_board = board.copy()
+    temp_board[r, c] = player
+    
+    # 2. Check if this placement wins the game. If it wins, it is allowed!
+    if check_win(temp_board, 5) != 0:
+        return False
+        
+    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+    open_threes = 0
+    
+    for dr, dc in directions:
+        # Build a line of 11 cells centered at (r, c)
+        # index 5 corresponds to (r, c)
+        line = []
+        for i in range(-5, 6):
+            nr, nc = r + i*dr, c + i*dc
+            if 0 <= nr < board_size and 0 <= nc < board_size:
+                line.append(temp_board[nr, nc])
+            else:
+                line.append(2)  # Treat out of board as obstacle
+                
+        # Now check all 6-cell windows in this line
+        # There are 6 windows starting at index 0 to 5
+        for start_idx in range(6):
+            window = line[start_idx : start_idx + 6]
+            placed_rel_idx = 5 - start_idx
+            
+            # We want to check if window matches one of the four patterns:
+            # player (1 or -1), 0 (empty)
+            # The placed stone must be one of the player's active stones.
+            patterns = [
+                ([0, 0, player, player, player, 0], [2, 3, 4]),
+                ([0, player, 0, player, player, 0], [1, 3, 4]),
+                ([0, player, player, 0, player, 0], [1, 2, 4]),
+                ([0, player, player, player, 0, 0], [1, 2, 3])
+            ]
+            
+            is_open_three = False
+            for pat, p_indices in patterns:
+                if all(int(window[i]) == pat[i] for i in range(6)):
+                    if placed_rel_idx in p_indices:
+                        is_open_three = True
+                        break
+            
+            if is_open_three:
+                open_threes += 1
+                break  # Only count at most one open three per direction
+                
+    return open_threes >= 2
+
 
 
 def render_str(board, board_size, action_index):
@@ -168,8 +233,10 @@ def get_state_pt(node_id, board_size, channel_size):
     return state
 
 
-def get_board(node_id, board_size):
+def get_board(node_id, board_size, obstacles=[]):
     board = np.zeros(board_size**2)
+    for obs in obstacles:
+        board[obs] = 2
     for i, action_index in enumerate(node_id[1:]):
         if i % 2 == 0:
             board[action_index] = 1
@@ -177,6 +244,7 @@ def get_board(node_id, board_size):
             board[action_index] = -1
 
     return board.reshape(board_size, board_size)
+
 
 
 def get_turn(node_id):
@@ -237,3 +305,222 @@ def augment_dataset(memory, board_size):
             aug_dataset.append((s_flip, pi_flip, z))
 
     return aug_dataset
+
+
+def evaluate_board(board, player):
+    """
+    [Heuristic Evaluation Function V(s)]
+    Scans the board in all 4 directions (rows, cols, diagonals, anti-diagonals)
+    and sums up pattern scores for both player and opponent.
+    Returns a normalized value in the range [-1.0, 1.0].
+    """
+    lines = get_all_lines(board)
+    
+    score_self = 0
+    score_opp = 0
+    
+    # Evaluate every line on the board of length >= 5
+    for line in lines:
+        line_list = line.tolist()
+        score_self += score_line(line_list, player)
+        score_opp += score_line(line_list, -player)
+        
+    # Hyperbolic tangent (tanh) maps the raw score difference to [-1.0, 1.0].
+    # C=10000 ensures that a difference of one Active Four (10,000) or several Active Threes
+    # pushes the MCTS node evaluation close to absolute win (1.0) or loss (-1.0).
+    val = np.tanh((score_self - score_opp) / 10000.0)
+    return val
+
+
+def get_all_lines(board):
+    """
+    Extracts all lines of length >= 5 from the 19x19 board.
+    Includes all 19 rows, 19 columns, and all diagonals / anti-diagonals of length >= 5.
+    """
+    lines = []
+    board_size = len(board)
+    
+    # 1. Rows
+    for r in range(board_size):
+        lines.append(board[r, :])
+        
+    # 2. Columns
+    for c in range(board_size):
+        lines.append(board[:, c])
+        
+    # 3. Diagonals (Top-Left to Bottom-Right)
+    # The length of a diagonal with offset is board_size - abs(offset).
+    # Since length must be >= 5, offset range is from -14 to 14.
+    for offset in range(-(board_size - 5), board_size - 4):
+        lines.append(np.diagonal(board, offset))
+        
+    # 4. Anti-diagonals (Top-Right to Bottom-Left)
+    flipped_board = np.fliplr(board)
+    for offset in range(-(board_size - 5), board_size - 4):
+        lines.append(np.diagonal(flipped_board, offset))
+        
+    return lines
+
+
+def get_local_lines(board, r, c):
+    """
+    OPTIMIZATION: Extracts only the 4 lines passing through cell (r, c).
+    Instead of scanning the whole board (96 lines) for each candidate move,
+    we only scan the affected row, col, diagonal, and anti-diagonal.
+    """
+    board_size = len(board)
+    lines = []
+    
+    # 1. Row
+    lines.append(board[r, :].tolist())
+    
+    # 2. Column
+    lines.append(board[:, c].tolist())
+    
+    # 3. Diagonal (Top-Left to Bottom-Right passing through r, c)
+    diag_offset = c - r
+    lines.append(np.diagonal(board, diag_offset).tolist())
+    
+    # 4. Anti-diagonal (Top-Right to Bottom-Left passing through r, c)
+    # Convert col index 'c' to its flipped index on fliplr board
+    flipped_c = board_size - 1 - c
+    anti_diag_offset = flipped_c - r
+    lines.append(np.diagonal(np.fliplr(board), anti_diag_offset).tolist())
+    
+    return lines
+
+
+def score_line(simp_line, target_player):
+    """
+    [Pattern Matching Window Scanner]
+    Slides windows of size 5 and 6 across a single line.
+    Assigns scores based on classical Omok heuristic patterns.
+    """
+    # Translate board values to: 1 = Self, -1 = Block (Opponent or Obstacle), 0 = Empty
+    simp = []
+    for cell in simp_line:
+        if cell == target_player:
+            simp.append(1)
+        elif cell == 0:
+            simp.append(0)
+        else:
+            simp.append(-1)
+            
+    score = 0
+    n = len(simp)
+    
+    # 1. Slide window of size 6 for open/active threats (both ends must be empty)
+    for i in range(n - 5):
+        w = simp[i : i+6]
+        
+        # Active Four (Open 4): . 1 1 1 1 . (Win guaranteed next turn)
+        if w == [0, 1, 1, 1, 1, 0]:
+            score += 10000
+            
+        # Active Three (Open 3): e.g., . . 1 1 1 . or . 1 . 1 1 . (Creates Open 4 if unblocked)
+        elif w in [
+            [0, 0, 1, 1, 1, 0],
+            [0, 1, 1, 1, 0, 0],
+            [0, 1, 0, 1, 1, 0],
+            [0, 1, 1, 0, 1, 0]
+        ]:
+            score += 1000
+            
+        # Active Two (Open 2): e.g., . . 1 1 . . or . . 1 . 1 .
+        elif w in [
+            [0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 0]
+        ]:
+            score += 100
+            
+    # 2. Slide window of size 5 for closed/absolute threats
+    for i in range(n - 4):
+        w = simp[i : i+5]
+        ones = w.count(1)
+        zeros = w.count(0)
+        
+        # Five in a row: 1 1 1 1 1 (Immediate Win)
+        if ones == 5:
+            score += 100000
+            
+        # Closed Four (Blocked 4): e.g., x 1 1 1 1 . or . 1 1 0 1 1 (Can make a Five)
+        elif ones == 4 and zeros == 1:
+            score += 1000
+            
+        # Closed Three (Blocked 3): e.g., x 1 1 1 . .
+        elif ones == 3 and zeros == 2:
+            score += 100
+            
+        # Closed Two (Blocked 2): e.g., x 1 1 . . .
+        elif ones == 2 and zeros == 3:
+            score += 10
+            
+        # Single stone: e.g., . . 1 . . (Base development potential)
+        elif ones == 1 and zeros == 4:
+            score += 1
+            
+    return score
+
+
+def get_heuristic_policy(board, legal_actions, player):
+    """
+    [Prior Probability Policy Function P(s, a)]
+    For each candidate move 'a', computes the score delta (Attack value) and the opponent's
+    potential score delta if they played there (Defense/Block value).
+    Returns a probability distribution over the legal actions.
+    """
+    board_size = len(board)
+    scores = np.zeros(board_size**2)
+    
+    # Evaluate each action locally
+    for action in legal_actions:
+        r = action // board_size
+        c = action % board_size
+        
+        # Get the 4 affected lines before the placement
+        lines_before = get_local_lines(board, r, c)
+        
+        # Simulate placing player's own stone (Attack)
+        temp_board_self = board.copy()
+        temp_board_self[r, c] = player
+        lines_after_self = get_local_lines(temp_board_self, r, c)
+        
+        # Simulate placing opponent's stone (Defense/Block)
+        temp_board_opp = board.copy()
+        temp_board_opp[r, c] = -player
+        lines_after_opp = get_local_lines(temp_board_opp, r, c)
+        
+        attack = 0
+        defense = 0
+        # Calculate local score changes in all 4 directions
+        for i in range(len(lines_before)):
+            attack += score_line(lines_after_self[i], player) - score_line(lines_before[i], player)
+            defense += score_line(lines_after_opp[i], -player) - score_line(lines_before[i], -player)
+            
+        # Action score = Attack + 1.2 * Defense.
+        # Defense is weighted slightly higher (1.2) to ensure the AI blocks vital threats first.
+        scores[action] = attack + 1.2 * defense
+        
+    probs = np.zeros(board_size**2)
+    if not legal_actions:
+        return probs
+        
+    # Apply softmax with temperature scaling to translate scores to probabilities.
+    # To prevent numeric overflow in np.exp, we subtract the max score first.
+    legal_scores = scores[legal_actions]
+    max_score = np.max(legal_scores)
+    
+    # Temperature tau = 2.0. Smoothes probabilities slightly to allow MCTS exploration.
+    tau = 2.0
+    exp_scores = np.exp((legal_scores - max_score) / tau)
+    sum_exp = np.sum(exp_scores)
+    
+    if sum_exp > 0:
+        probs[legal_actions] = exp_scores / sum_exp
+    else:
+        probs[legal_actions] = 1.0 / len(legal_actions)
+        
+    return probs
+
+
