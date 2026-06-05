@@ -144,9 +144,16 @@ def main():
     try:
         for id_a, id_b, res1, res2 in pool.imap_unordered(match_runner, tasks):
             completed += 1
-            if completed % 10 == 0 or completed == num_tasks:
-                sys.stdout.write(f"\r대국 시뮬레이션 진행 상황: {completed * 2} / {num_tasks * 2} 판 완료 ({completed*100.0/num_tasks:.1f}%)")
-                sys.stdout.flush()
+            elapsed = time.time() - start_time
+            rate = completed / elapsed if elapsed > 0 else 0
+            eta = (num_tasks - completed) / rate if rate > 0 else 0
+            
+            # Print real-time progress on every single matchup completion
+            sys.stdout.write(
+                f"\r대국 시뮬레이션 진행 상황: {completed * 2}/{num_tasks * 2} 판 완료 ({completed * 100.0 / num_tasks:.1f}%) "
+                f"| 경과 시간: {elapsed:.1f}초 | 남은 시간: {eta:.1f}초 | 최근 완료 매치: ID {id_a} vs ID {id_b}      "
+            )
+            sys.stdout.flush()
                 
             # Game 1: A is Black, B is White
             games_played[id_a] += 1
