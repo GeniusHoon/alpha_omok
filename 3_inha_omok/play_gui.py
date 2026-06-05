@@ -198,6 +198,28 @@ class OmokGUI:
             cy = self.margin + r * self.cell_size
             self.canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill="#2b2b2b", outline="")
 
+        # Draw coordinate labels (X: 1-19, Y: 1-19)
+        label_font = ("Segoe UI", 9, "bold")
+        label_color = "#1a1a1a" # Dark high-contrast color for maximum visibility
+        
+        for i in range(self.board_size):
+            cx = self.margin + i * self.cell_size
+            cy = self.margin + i * self.cell_size
+            
+            # X-axis label (1 to 19 from left to right)
+            x_val = i + 1
+            # Top label
+            self.canvas.create_text(cx, self.margin - 18, text=str(x_val), font=label_font, fill=label_color)
+            # Bottom label
+            self.canvas.create_text(cx, self.margin + 18 * self.cell_size + 18, text=str(x_val), font=label_font, fill=label_color)
+            
+            # Y-axis label (1 to 19 from bottom to top)
+            y_val = self.board_size - i
+            # Left label
+            self.canvas.create_text(self.margin - 18, cy, text=str(y_val), font=label_font, fill=label_color)
+            # Right label
+            self.canvas.create_text(self.margin + 18 * self.cell_size + 18, cy, text=str(y_val), font=label_font, fill=label_color)
+
         # Draw actual game entities
         if self.game_started and self.env is not None:
             board = self.env.gameboard
