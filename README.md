@@ -93,12 +93,17 @@ The description of the files in the folder is as follows. (files with **bold tex
 This folder contains the active, highly optimized console-based 19x19 Gomoku MCTS AI engine specifically developed for the school tournament. It has been stripped of unused neural network models and web server templates to keep the workspace clean.
 
 #### Key Features:
-- **Rule Compliance**: Console-based 19x19 Gomoku environment (`env_competition.py`) adhering to tournament rules (forced first-move at center `(10,10)` for Black, 3 red obstacle stones, double-three restrictions, and 5+ overline win).
+- **Rule Compliance**: Console/GUI 19x19 Gomoku environment (`env_competition.py`) adhering to tournament rules (forced first-move at center `(10,10)` for Black, 3 red obstacle stones, double-three restrictions, and 5+ overline win).
+- **GUI & Console Play**: Interactive Tkinter GUI (`play_gui.py`) featuring thread-safe background AI search, 3D stone rendering, mouse-hover guides, and click-to-place obstacle setup.
 - **Heuristic MCTS**: Fast heuristic pattern-based scoring combined with MCTS rollouts.
 - **Extreme C++ Optimizations**: C++ search engine (`omok_cpp.cpp`) utilizing a pre-allocated static BSS node pool (Zero-Allocation MCTS), 32-byte cache line alignment, float calculations, and sqrt caching to achieve **~1785 Simulations Per Second (SPS)**.
 - **Tuner**: Multiprocessing grid-search tuner (`grid_search.py`) to optimize search constants.
 
 #### How to run:
+* Human vs AI GUI Play (Recommended):
+  ```powershell
+  python 3_inha_omok/play_gui.py
+  ```
 * Human vs AI Console Play:
   ```powershell
   python 3_inha_omok/play_console.py
