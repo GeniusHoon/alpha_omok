@@ -379,9 +379,9 @@ def evaluate_board(board, player):
         score_opp += score_line(line_list, -player)
         
     # Hyperbolic tangent (tanh) maps the raw score difference to [-1.0, 1.0].
-    # C=10000 ensures that a difference of one Active Four (10,000) or several Active Threes
+    # C=50000 ensures that a difference of one Active Four (50,000) or several Active Threes
     # pushes the MCTS node evaluation close to absolute win (1.0) or loss (-1.0).
-    val = np.tanh((score_self - score_opp) / 10000.0)
+    val = np.tanh((score_self - score_opp) / 50000.0)
     return val
 
 
@@ -468,7 +468,7 @@ def score_line(simp_line, target_player):
         
         # Active Four (Open 4): . 1 1 1 1 . (Win guaranteed next turn)
         if w == [0, 1, 1, 1, 1, 0]:
-            score += 10000
+            score += 50000
             
         # Active Three (Open 3): e.g., . . 1 1 1 . or . 1 . 1 1 . (Creates Open 4 if unblocked)
         elif w in [
@@ -477,7 +477,7 @@ def score_line(simp_line, target_player):
             [0, 1, 0, 1, 1, 0],
             [0, 1, 1, 0, 1, 0]
         ]:
-            score += 1000
+            score += 5000
             
         # Active Two (Open 2): e.g., . . 1 1 . . or . . 1 . 1 .
         elif w in [
@@ -499,15 +499,15 @@ def score_line(simp_line, target_player):
             
         # Closed Four (Blocked 4): e.g., x 1 1 1 1 . or . 1 1 0 1 1 (Can make a Five)
         elif ones == 4 and zeros == 1:
-            score += 1000
+            score += 20000
             
         # Closed Three (Blocked 3): e.g., x 1 1 1 . .
         elif ones == 3 and zeros == 2:
-            score += 100
+            score += 1000
             
         # Closed Two (Blocked 2): e.g., x 1 1 . . .
         elif ones == 2 and zeros == 3:
-            score += 10
+            score += 100
             
         # Single stone: e.g., . . 1 . . (Base development potential)
         elif ones == 1 and zeros == 4:

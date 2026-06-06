@@ -131,7 +131,7 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
             
             // Active Four: . 1 1 1 1 .
             if (w[0] == 0 && w[1] == 1 && w[2] == 1 && w[3] == 1 && w[4] == 1 && w[5] == 0) {
-                score += 10000;
+                score += 50000;
             }
             // Active Three:
             // . . 1 1 1 . (0, 0, 1, 1, 1, 0)
@@ -143,7 +143,7 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
                     (w[1] == 1 && w[2] == 1 && w[3] == 1 && w[4] == 0) ||
                     (w[1] == 1 && w[2] == 0 && w[3] == 1 && w[4] == 1) ||
                     (w[1] == 1 && w[2] == 1 && w[3] == 0 && w[4] == 1)) {
-                    score += 1000;
+                    score += 5000;
                 }
             }
             // Active Two:
@@ -173,11 +173,11 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
             if (ones == 5) {
                 score += 100000;
             } else if (ones == 4 && zeros == 1) {
-                score += 1000;
+                score += 20000; // Four in a row
             } else if (ones == 3 && zeros == 2) {
-                score += 100;
+                score += 1000;  // Three in a row
             } else if (ones == 2 && zeros == 3) {
-                score += 10;
+                score += 100;   // Two in a row
             } else if (ones == 1 && zeros == 4) {
                 score += 1;
             }
@@ -312,7 +312,7 @@ extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int
         score_opp += score_line_cpp(anti_diag, idx_anti, -player);
     }
     
-    return std::tanh((score_self - score_opp) / 10000.0);
+    return std::tanh((score_self - score_opp) / 50000.0);
 }
 
 // C++ implementation of get_heuristic_policy
