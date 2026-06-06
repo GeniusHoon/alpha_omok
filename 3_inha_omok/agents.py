@@ -40,7 +40,7 @@ class HeuristicMCTS(Agent):
         self.board_size = board_size
         self.num_mcts = num_mcts
         self.win_mark = 5
-        self.c_puct = 5
+        self.c_puct = 3
         self.obstacles = obstacles  # List of integer action indices
         self.root_id = None
         self.tree = {}
@@ -214,7 +214,7 @@ class CppHeuristicMCTS(Agent):
         self.num_mcts = num_mcts
         self.obstacles = obstacles  # List of integer action indices
         # Default hyperparameters, which can be modified during grid search
-        self.c_puct = 5.0
+        self.c_puct = 3.0
         self.defense_weight = 1.2
         self.tau = 2.0
 
