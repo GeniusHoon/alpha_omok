@@ -312,7 +312,8 @@ extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int
         score_opp += score_line_cpp(anti_diag, idx_anti, -player, score_table);
     }
     
-    return std::tanh((score_self - score_opp) / (double)score_table[8]);
+    double norm_const = score_table[1] == 0 ? 1.0 : (double)score_table[1];
+    return std::tanh((score_self - score_opp) / norm_const);
 }
 
 // C++ implementation of get_heuristic_policy
@@ -410,7 +411,7 @@ int select_leaf_cpp(int root_idx, int* board, int& player, float c_puct) {
         int first_child = node_pool[node_idx].first_child_idx;
         int num_children = node_pool[node_idx].num_children;
         
-        float total_n = 0.0f;
+        int total_n = 0;
         for (int i = 0; i < num_children; ++i) {
             total_n += node_pool[first_child + i].visit_count;
         }

@@ -354,7 +354,7 @@ def augment_dataset(memory, board_size):
     return aug_dataset
 
 
-DEFAULT_SCORES = [100000, 50000, 20000, 5000, 1000, 100, 100, 1, 50000]
+DEFAULT_SCORES = [100000, 100000, 20000, 5000, 1000, 100, 100, 1]
 
 def evaluate_board(board, player, score_table=None):
     """
@@ -387,9 +387,10 @@ def evaluate_board(board, player, score_table=None):
         score_opp += score_line(line_list, -player, score_table)
         
     # Hyperbolic tangent (tanh) maps the raw score difference to [-1.0, 1.0].
-    # C=score_table[8] ensures that a difference of one Active Four or several Active Threes
+    # C=score_table[1] ensures that a difference of one Active Four or several Active Threes
     # pushes the MCTS node evaluation close to absolute win (1.0) or loss (-1.0).
-    val = np.tanh((score_self - score_opp) / float(score_table[8]))
+    norm_const = float(score_table[1]) if score_table[1] != 0 else 1.0
+    val = np.tanh((score_self - score_opp) / norm_const)
     return val
 
 

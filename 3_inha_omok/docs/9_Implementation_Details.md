@@ -20,9 +20,9 @@
 
 오목의 보드 상태 가치 평가 함수 $V(s)$는 패턴 매칭 점수의 총합 차이를 구한 뒤 최종적으로 $\tanh(x)$ 함수를 통과하여 출력됩니다. 
 
-$$V(s) = \tanh\left(\frac{Score_{\text{self}} - Score_{\text{opp}}}{C}\right)$$
+$$V(s) = \tanh\left(\frac{Score_{\text{self}} - Score_{\text{opp}}}{Score_{\text{Open4}}}\right)$$
 
-이 기법을 사용하는 핵심 이유는 다음과 같습니다.
+이 기법을 사용하며, 정규화 상수로 열린 4목의 가치 점수를 동적으로 적용하는 핵심 이유는 다음과 같습니다.
 
 ### (1) MCTS 수학적 모델의 정규화 (Normalization)
 MCTS 알고리즘에서 노드의 가치 $Q(s, a)$ 및 백업(Backup) 수식은 $[-1.0, 1.0]$ 범위 내에서 설계되어 있습니다.

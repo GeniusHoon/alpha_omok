@@ -15,13 +15,13 @@ import agents
 # Pre-defined configurations
 ALGORITHMS = {
     '1': {'name': 'C++ Standard MCTS (C_puct=3.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '2': {'name': 'C++ Aggressive MCTS (C_puct=3.0, Def=1.0, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.0},
+    '2': {'name': 'C++ Aggressive MCTS (C_puct=3.0, Def=1.0, Sims=6000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.0},
     '3': {'name': 'C++ Defensive MCTS (C_puct=3.0, Def=1.5, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.5},
     '4': {'name': 'C++ Low Expl MCTS (C_puct=1.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 1.0, 'defense_weight': 1.2},
     '5': {'name': 'C++ High Expl MCTS (C_puct=5.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 5.0, 'defense_weight': 1.2},
     '6': {'name': 'C++ High Sims MCTS (C_puct=3.0, Def=1.2, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '7': {'name': 'Python Fallback MCTS (C_puct=3.0, Def=1.2, Sims=400)', 'type': 'python', 'num_mcts': 400, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '8': {'name': 'C++ VCF-focused MCTS (Boosted 4s, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 80000, 30000, 5000, 1000, 100, 100, 1, 80000]}
+    '7': {'name': 'C++ VCF-focused MCTS (Boosted 4s, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 100000, 20000, 30000, 1000, 100, 100, 1]},
+    '8': {'name': 'C++ VCF-focused MCTS2 (Boosted 4s, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 100000, 30000, 20000, 1000, 100, 100, 1]}
 }
 
 def create_agent(cfg, board_size, obstacles):
@@ -126,14 +126,14 @@ def configure_custom_agent():
         if not ans or ans == 'n':
             break
         if ans == 'y':
-            print("9개의 정수 값(쉼표 구분)을 입력하세요.")
-            print("순서: 오목, 열린4, 닫힌4, 열린3, 닫힌3, 열린2, 닫힌2, 단일돌, 탄젠트정규화상수")
-            print("예시: 100000,50000,20000,5000,1000,100,100,1,50000")
+            print("8개의 정수 값(쉼표 구분)을 입력하세요.")
+            print("순서: 오목, 열린4, 닫힌4, 열린3, 닫힌3, 열린2, 닫힌2, 단일돌")
+            print("예시: 100000,50000,20000,5000,1000,100,100,1")
             raw_scores = input("스코어 입력: ").strip()
             try:
                 parts = [int(p.strip()) for p in raw_scores.split(',')]
-                if len(parts) != 9:
-                    print(f"[에러] 입력된 스코어 개수가 {len(parts)}개입니다. 반드시 9개여야 합니다.")
+                if len(parts) != 8:
+                    print(f"[에러] 입력된 스코어 개수가 {len(parts)}개입니다. 반드시 8개여야 합니다.")
                     continue
                 score_table = parts
                 print(f"[알림] 스코어 테이블 설정 완료: {score_table}")
