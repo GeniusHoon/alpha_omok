@@ -20,17 +20,19 @@ ALGORITHMS = {
     '4': {'name': 'C++ Low Expl MCTS (C_puct=1.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 1.0, 'defense_weight': 1.2},
     '5': {'name': 'C++ High Expl MCTS (C_puct=5.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 5.0, 'defense_weight': 1.2},
     '6': {'name': 'C++ High Sims MCTS (C_puct=3.0, Def=1.2, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '7': {'name': 'Python Fallback MCTS (C_puct=3.0, Def=1.2, Sims=400)', 'type': 'python', 'num_mcts': 400, 'c_puct': 3.0, 'defense_weight': 1.2}
+    '7': {'name': 'Python Fallback MCTS (C_puct=3.0, Def=1.2, Sims=400)', 'type': 'python', 'num_mcts': 400, 'c_puct': 3.0, 'defense_weight': 1.2},
+    '8': {'name': 'C++ VCF-focused MCTS (Boosted 4s, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 80000, 30000, 5000, 1000, 100, 100, 1, 80000]}
 }
 
 def create_agent(cfg, board_size, obstacles):
     """
     Creates agent instance based on config dictionary.
     """
+    score_table = cfg.get('score_table', None)
     if cfg['type'] == 'cpp' and utils._cpp_lib is not None:
-        agent = agents.CppHeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles)
+        agent = agents.CppHeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles, score_table=score_table)
     else:
-        agent = agents.HeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles)
+        agent = agents.HeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles, score_table=score_table)
     agent.c_puct = cfg['c_puct']
     agent.defense_weight = cfg['defense_weight']
     return agent
@@ -118,8 +120,36 @@ def configure_custom_agent():
         except ValueError:
             print("[에러] 실수를 입력하세요.")
             
+    score_table = None
+    while True:
+        ans = input("휴리스틱 스코어 테이블도 수정하시겠습니까? (y/n) [기본값: n]: ").strip().lower()
+        if not ans or ans == 'n':
+            break
+        if ans == 'y':
+            print("9개의 정수 값(쉼표 구분)을 입력하세요.")
+            print("순서: 오목, 열린4, 닫힌4, 열린3, 닫힌3, 열린2, 닫힌2, 단일돌, 탄젠트정규화상수")
+            print("예시: 100000,50000,20000,5000,1000,100,100,1,50000")
+            raw_scores = input("스코어 입력: ").strip()
+            try:
+                parts = [int(p.strip()) for p in raw_scores.split(',')]
+                if len(parts) != 9:
+                    print(f"[에러] 입력된 스코어 개수가 {len(parts)}개입니다. 반드시 9개여야 합니다.")
+                    continue
+                score_table = parts
+                print(f"[알림] 스코어 테이블 설정 완료: {score_table}")
+                break
+            except ValueError:
+                print("[에러] 올바른 정수 리스트 형식이 아닙니다.")
+        else:
+            print("[에러] y 또는 n을 입력하세요.")
+            
+    name_str = f'Custom (Type={agent_type.upper()}, Sims={sims}, C_puct={c_puct}, Def={def_w}'
+    if score_table is not None:
+        name_str += f', DynamicScores'
+    name_str += ')'
+
     return {
-        'name': f'Custom (Type={agent_type.upper()}, Sims={sims}, C_puct={c_puct}, Def={def_w})',
+        'name': name_str,
         'type': agent_type,
         'num_mcts': sims,
         'c_puct': c_puct,

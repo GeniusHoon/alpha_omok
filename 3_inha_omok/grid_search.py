@@ -24,11 +24,11 @@ def play_match(params_black, params_white, obstacles_coords, obstacles_actions):
     
     # 0: Black, 1: White
     # We use C++ optimized agent (CppHeuristicMCTS) for high speed
-    black_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=400, obstacles=obstacles_actions)
+    black_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=400, obstacles=obstacles_actions, score_table=params_black.get('score_table', None))
     black_agent.c_puct = params_black['c_puct']
     black_agent.defense_weight = params_black['defense_weight']
     
-    white_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=400, obstacles=obstacles_actions)
+    white_agent = agents.CppHeuristicMCTS(board_size=19, num_mcts=400, obstacles=obstacles_actions, score_table=params_white.get('score_table', None))
     white_agent.c_puct = params_white['c_puct']
     white_agent.defense_weight = params_white['defense_weight']
     

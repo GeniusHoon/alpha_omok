@@ -35,13 +35,14 @@ class Agent(object):
         return None, None
 
 class HeuristicMCTS(Agent):
-    def __init__(self, board_size, num_mcts, obstacles=[]):
+    def __init__(self, board_size, num_mcts, obstacles=[], score_table=None):
         super(HeuristicMCTS, self).__init__(board_size)
         self.board_size = board_size
         self.num_mcts = num_mcts
         self.win_mark = 5
         self.c_puct = 3
         self.obstacles = obstacles  # List of integer action indices
+        self.score_table = score_table if score_table is not None else utils.DEFAULT_SCORES
         self.root_id = None
         self.tree = {}
 
@@ -162,7 +163,7 @@ class HeuristicMCTS(Agent):
             value = False
             return value, reward
             
-        prior_prob = utils.get_heuristic_policy(board, actions, player)
+        prior_prob = utils.get_heuristic_policy(board, actions, player, self.score_table)
         
         for action_index in actions:
             child_id = leaf_id + (action_index,)
@@ -173,7 +174,7 @@ class HeuristicMCTS(Agent):
                                    'p': prior_prob[action_index]}
             self.tree[leaf_id]['child'].append(action_index)
             
-        value = utils.evaluate_board(board, player)
+        value = utils.evaluate_board(board, player, self.score_table)
         reward = False
         return value, reward
 
@@ -208,11 +209,12 @@ class HeuristicMCTS(Agent):
 
 
 class CppHeuristicMCTS(Agent):
-    def __init__(self, board_size, num_mcts, obstacles=[]):
+    def __init__(self, board_size, num_mcts, obstacles=[], score_table=None):
         super(CppHeuristicMCTS, self).__init__(board_size)
         self.board_size = board_size
         self.num_mcts = num_mcts
         self.obstacles = obstacles  # List of integer action indices
+        self.score_table = score_table if score_table is not None else utils.DEFAULT_SCORES
         # Default hyperparameters, which can be modified during grid search
         self.c_puct = 3.0
         self.defense_weight = 1.2
@@ -234,13 +236,16 @@ class CppHeuristicMCTS(Agent):
         # start_turn is 0 for Black, 1 for White
         best_action = -1
         if utils._cpp_lib is not None:
+            score_table_array = np.array(self.score_table, dtype=np.int32)
+            score_table_ptr = score_table_array.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
             best_action = utils._cpp_lib.mcts_search_cpp(
                 board_ptr,
                 int(turn),
                 int(self.num_mcts),
                 float(self.c_puct),
                 float(self.defense_weight),
-                float(self.tau)
+                float(self.tau),
+                score_table_ptr
             )
         
         # Fallback to random move if DLL fails or cannot find move

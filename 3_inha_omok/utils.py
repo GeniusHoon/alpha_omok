@@ -19,7 +19,7 @@ if os.path.exists(dll_path):
         _cpp_lib.check_double_three_cpp.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int, ctypes.c_int]
         _cpp_lib.check_double_three_cpp.restype = ctypes.c_bool
         
-        _cpp_lib.evaluate_board_cpp.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+        _cpp_lib.evaluate_board_cpp.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
         _cpp_lib.evaluate_board_cpp.restype = ctypes.c_double
         
         _cpp_lib.mcts_search_cpp.argtypes = [
@@ -28,7 +28,8 @@ if os.path.exists(dll_path):
             ctypes.c_int,                 # num_mcts
             ctypes.c_double,              # c_puct
             ctypes.c_double,              # defense_weight
-            ctypes.c_double               # tau
+            ctypes.c_double,              # tau
+            ctypes.POINTER(ctypes.c_int)  # score_table
         ]
         _cpp_lib.mcts_search_cpp.restype = ctypes.c_int
         print(f"[알림] 성공적으로 C++ 최적화 DLL({dll_path})을 로드했습니다.")
@@ -353,7 +354,9 @@ def augment_dataset(memory, board_size):
     return aug_dataset
 
 
-def evaluate_board(board, player):
+DEFAULT_SCORES = [100000, 50000, 20000, 5000, 1000, 100, 100, 1, 50000]
+
+def evaluate_board(board, player, score_table=None):
     """
     [Heuristic Evaluation Function V(s)]
     Scans the board in all 4 directions (rows, cols, diagonals, anti-diagonals)
@@ -361,11 +364,16 @@ def evaluate_board(board, player):
     Returns a normalized value in the range [-1.0, 1.0].
     Calls C++ optimized version if DLL is loaded and board is 19x19.
     """
+    if score_table is None:
+        score_table = DEFAULT_SCORES
+        
     board_size = len(board)
     if _cpp_lib is not None and board_size == 19:
         flat_board = board.flatten().astype(np.int32)
         board_ptr = flat_board.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
-        return float(_cpp_lib.evaluate_board_cpp(board_ptr, int(player)))
+        score_table_array = np.array(score_table, dtype=np.int32)
+        score_table_ptr = score_table_array.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        return float(_cpp_lib.evaluate_board_cpp(board_ptr, int(player), score_table_ptr))
         
     lines = get_all_lines(board)
     
@@ -375,13 +383,13 @@ def evaluate_board(board, player):
     # Evaluate every line on the board of length >= 5
     for line in lines:
         line_list = line.tolist()
-        score_self += score_line(line_list, player)
-        score_opp += score_line(line_list, -player)
+        score_self += score_line(line_list, player, score_table)
+        score_opp += score_line(line_list, -player, score_table)
         
     # Hyperbolic tangent (tanh) maps the raw score difference to [-1.0, 1.0].
-    # C=50000 ensures that a difference of one Active Four (50,000) or several Active Threes
+    # C=score_table[8] ensures that a difference of one Active Four or several Active Threes
     # pushes the MCTS node evaluation close to absolute win (1.0) or loss (-1.0).
-    val = np.tanh((score_self - score_opp) / 50000.0)
+    val = np.tanh((score_self - score_opp) / float(score_table[8]))
     return val
 
 
@@ -443,12 +451,15 @@ def get_local_lines(board, r, c):
     return lines
 
 
-def score_line(simp_line, target_player):
+def score_line(simp_line, target_player, score_table=None):
     """
     [Pattern Matching Window Scanner]
     Slides windows of size 5 and 6 across a single line.
     Assigns scores based on classical Omok heuristic patterns.
     """
+    if score_table is None:
+        score_table = DEFAULT_SCORES
+        
     # Translate board values to: 1 = Self, -1 = Block (Opponent or Obstacle), 0 = Empty
     simp = []
     for cell in simp_line:
@@ -468,7 +479,7 @@ def score_line(simp_line, target_player):
         
         # Active Four (Open 4): . 1 1 1 1 . (Win guaranteed next turn)
         if w == [0, 1, 1, 1, 1, 0]:
-            score += 50000
+            score += score_table[1]
             
         # Active Three (Open 3): e.g., . . 1 1 1 . or . 1 . 1 1 . (Creates Open 4 if unblocked)
         elif w in [
@@ -477,7 +488,7 @@ def score_line(simp_line, target_player):
             [0, 1, 0, 1, 1, 0],
             [0, 1, 1, 0, 1, 0]
         ]:
-            score += 5000
+            score += score_table[3]
             
         # Active Two (Open 2): e.g., . . 1 1 . . or . . 1 . 1 .
         elif w in [
@@ -485,7 +496,7 @@ def score_line(simp_line, target_player):
             [0, 0, 1, 0, 1, 0],
             [0, 1, 0, 1, 0, 0]
         ]:
-            score += 100
+            score += score_table[5]
             
     # 2. Slide window of size 5 for closed/absolute threats
     for i in range(n - 4):
@@ -495,34 +506,37 @@ def score_line(simp_line, target_player):
         
         # Five in a row: 1 1 1 1 1 (Immediate Win)
         if ones == 5:
-            score += 100000
+            score += score_table[0]
             
         # Closed Four (Blocked 4): e.g., x 1 1 1 1 . or . 1 1 0 1 1 (Can make a Five)
         elif ones == 4 and zeros == 1:
-            score += 20000
+            score += score_table[2]
             
         # Closed Three (Blocked 3): e.g., x 1 1 1 . .
         elif ones == 3 and zeros == 2:
-            score += 1000
+            score += score_table[4]
             
         # Closed Two (Blocked 2): e.g., x 1 1 . . .
         elif ones == 2 and zeros == 3:
-            score += 100
+            score += score_table[6]
             
         # Single stone: e.g., . . 1 . . (Base development potential)
         elif ones == 1 and zeros == 4:
-            score += 1
+            score += score_table[7]
             
     return score
 
 
-def get_heuristic_policy(board, legal_actions, player):
+def get_heuristic_policy(board, legal_actions, player, score_table=None):
     """
     [Prior Probability Policy Function P(s, a)]
     For each candidate move 'a', computes the score delta (Attack value) and the opponent's
     potential score delta if they played there (Defense/Block value).
     Returns a probability distribution over the legal actions.
     """
+    if score_table is None:
+        score_table = DEFAULT_SCORES
+        
     board_size = len(board)
     scores = np.zeros(board_size**2)
     
@@ -548,8 +562,8 @@ def get_heuristic_policy(board, legal_actions, player):
         defense = 0
         # Calculate local score changes in all 4 directions
         for i in range(len(lines_before)):
-            attack += score_line(lines_after_self[i], player) - score_line(lines_before[i], player)
-            defense += score_line(lines_after_opp[i], -player) - score_line(lines_before[i], -player)
+            attack += score_line(lines_after_self[i], player, score_table) - score_line(lines_before[i], player, score_table)
+            defense += score_line(lines_after_opp[i], -player, score_table) - score_line(lines_before[i], -player, score_table)
             
         # Action score = Attack + 1.2 * Defense.
         # Defense is weighted slightly higher (1.2) to ensure the AI blocks vital threats first.

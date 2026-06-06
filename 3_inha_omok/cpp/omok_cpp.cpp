@@ -106,7 +106,7 @@ LocalLines get_local_lines_cpp(const int* board, int r, int c) {
 }
 
 // C++ implementation of score_line
-extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, int target_player) {
+extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, int target_player, const int* score_table) {
     // Translate line to: 1 = Self, -1 = Block (Opponent or Obstacle), 0 = Empty
     int simp[BOARD_SIZE];
     for (int i = 0; i < len; ++i) {
@@ -131,7 +131,7 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
             
             // Active Four: . 1 1 1 1 .
             if (w[0] == 0 && w[1] == 1 && w[2] == 1 && w[3] == 1 && w[4] == 1 && w[5] == 0) {
-                score += 50000;
+                score += score_table[1];
             }
             // Active Three:
             // . . 1 1 1 . (0, 0, 1, 1, 1, 0)
@@ -143,7 +143,7 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
                     (w[1] == 1 && w[2] == 1 && w[3] == 1 && w[4] == 0) ||
                     (w[1] == 1 && w[2] == 0 && w[3] == 1 && w[4] == 1) ||
                     (w[1] == 1 && w[2] == 1 && w[3] == 0 && w[4] == 1)) {
-                    score += 5000;
+                    score += score_table[3];
                 }
             }
             // Active Two:
@@ -154,7 +154,7 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
                 if ((w[1] == 0 && w[2] == 1 && w[3] == 1 && w[4] == 0) ||
                     (w[1] == 0 && w[2] == 1 && w[3] == 0 && w[4] == 1) ||
                     (w[1] == 1 && w[2] == 0 && w[3] == 1 && w[4] == 0)) {
-                    score += 100;
+                    score += score_table[5];
                 }
             }
         }
@@ -171,15 +171,15 @@ extern "C" __declspec(dllexport) int score_line_cpp(const int* line, int len, in
             }
             
             if (ones == 5) {
-                score += 100000;
+                score += score_table[0];
             } else if (ones == 4 && zeros == 1) {
-                score += 20000; // Four in a row
+                score += score_table[2]; // Four in a row
             } else if (ones == 3 && zeros == 2) {
-                score += 1000;  // Three in a row
+                score += score_table[4]; // Three in a row
             } else if (ones == 2 && zeros == 3) {
-                score += 100;   // Two in a row
+                score += score_table[6]; // Two in a row
             } else if (ones == 1 && zeros == 4) {
-                score += 1;
+                score += score_table[7]; // Single
             }
         }
     }
@@ -265,22 +265,22 @@ extern "C" __declspec(dllexport) bool check_double_three_cpp(const int* board, i
 }
 
 // C++ implementation of evaluate_board
-extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int player) {
+extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int player, const int* score_table) {
     int score_self = 0;
     int score_opp = 0;
     
     // 1. Rows (contiguous in memory, pass pointer directly)
     for (int r = 0; r < BOARD_SIZE; ++r) {
-        score_self += score_line_cpp(board + idx(r, 0), BOARD_SIZE, player);
-        score_opp += score_line_cpp(board + idx(r, 0), BOARD_SIZE, -player);
+        score_self += score_line_cpp(board + idx(r, 0), BOARD_SIZE, player, score_table);
+        score_opp += score_line_cpp(board + idx(r, 0), BOARD_SIZE, -player, score_table);
     }
     
     // 2. Columns (stack array)
     for (int c = 0; c < BOARD_SIZE; ++c) {
         int col[BOARD_SIZE];
         for (int r = 0; r < BOARD_SIZE; ++r) col[r] = board[idx(r, c)];
-        score_self += score_line_cpp(col, BOARD_SIZE, player);
-        score_opp += score_line_cpp(col, BOARD_SIZE, -player);
+        score_self += score_line_cpp(col, BOARD_SIZE, player, score_table);
+        score_opp += score_line_cpp(col, BOARD_SIZE, -player, score_table);
     }
     
     // 3. Diagonals (Top-Left to Bottom-Right) (stack array)
@@ -293,8 +293,8 @@ extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int
                 diag[idx_diag++] = board[idx(r, c)];
             }
         }
-        score_self += score_line_cpp(diag, idx_diag, player);
-        score_opp += score_line_cpp(diag, idx_diag, -player);
+        score_self += score_line_cpp(diag, idx_diag, player, score_table);
+        score_opp += score_line_cpp(diag, idx_diag, -player, score_table);
     }
     
     // 4. Anti-diagonals (Top-Right to Bottom-Left) (stack array)
@@ -308,15 +308,15 @@ extern "C" __declspec(dllexport) double evaluate_board_cpp(const int* board, int
                 anti_diag[idx_anti++] = board[idx(r, c)];
             }
         }
-        score_self += score_line_cpp(anti_diag, idx_anti, player);
-        score_opp += score_line_cpp(anti_diag, idx_anti, -player);
+        score_self += score_line_cpp(anti_diag, idx_anti, player, score_table);
+        score_opp += score_line_cpp(anti_diag, idx_anti, -player, score_table);
     }
     
-    return std::tanh((score_self - score_opp) / 50000.0);
+    return std::tanh((score_self - score_opp) / (double)score_table[8]);
 }
 
 // C++ implementation of get_heuristic_policy
-void get_heuristic_policy_cpp(const int* board, const int* legal_actions, int num_legal, int player, double defense_weight, double tau, double* out_probs) {
+void get_heuristic_policy_cpp(const int* board, const int* legal_actions, int num_legal, int player, double defense_weight, double tau, double* out_probs, const int* score_table) {
     double scores[BOARD_SIZE * BOARD_SIZE] = {0.0};
     
     int* mutable_board = const_cast<int*>(board);
@@ -344,10 +344,10 @@ void get_heuristic_policy_cpp(const int* board, const int* legal_actions, int nu
         double defense = 0.0;
         
         for (size_t i = 0; i < 4; ++i) {
-            attack += score_line_cpp(lines_after_self.data[i], lines_after_self.lengths[i], player) -
-                      score_line_cpp(lines_before.data[i], lines_before.lengths[i], player);
-            defense += score_line_cpp(lines_after_opp.data[i], lines_after_opp.lengths[i], -player) -
-                       score_line_cpp(lines_before.data[i], lines_before.lengths[i], -player);
+            attack += score_line_cpp(lines_after_self.data[i], lines_after_self.lengths[i], player, score_table) -
+                      score_line_cpp(lines_before.data[i], lines_before.lengths[i], player, score_table);
+            defense += score_line_cpp(lines_after_opp.data[i], lines_after_opp.lengths[i], -player, score_table) -
+                       score_line_cpp(lines_before.data[i], lines_before.lengths[i], -player, score_table);
         }
         
         scores[action] = attack + defense_weight * defense;
@@ -440,7 +440,7 @@ int select_leaf_cpp(int root_idx, int* board, int& player, float c_puct) {
 }
 
 // Perform C++ MCTS and return the best action index
-extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int start_turn, int num_mcts, double c_puct, double defense_weight, double tau) {
+extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int start_turn, int num_mcts, double c_puct, double defense_weight, double tau, const int* score_table) {
     auto start_time = std::chrono::high_resolution_clock::now();
     
     // Cast input params to float internally for fast float computation
@@ -513,7 +513,7 @@ extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int
             } else {
                 // Get prior policy using heuristic
                 double prior_prob[BOARD_SIZE * BOARD_SIZE] = {0.0};
-                get_heuristic_policy_cpp(sim_board, legal_actions, num_legal, player, defense_weight_f, tau_f, prior_prob);
+                get_heuristic_policy_cpp(sim_board, legal_actions, num_legal, player, defense_weight_f, tau_f, prior_prob, score_table);
                 
                 // Expand node (allocate contiguous block from global pool)
                 // Safety check to prevent pool overflow
@@ -539,7 +539,7 @@ extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int
                 }
                 
                 // Evaluate board from the current player's perspective
-                value = static_cast<float>(evaluate_board_cpp(sim_board, player));
+                value = static_cast<float>(evaluate_board_cpp(sim_board, player, score_table));
             }
         }
         
