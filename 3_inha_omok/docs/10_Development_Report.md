@@ -86,13 +86,14 @@ $$V(s) = \tanh\left(\frac{Score_{\text{self}} - Score_{\text{opp}}}{Score_{\text
 * 정규화 상수로 열린 4목의 가치 점수(기본값 $50000$)를 동적으로 적용하는 이유는, 열린 4목 차이가 날 경우 즉시 해당 보드 상태를 확실한 승세($1.0$) 또는 확실한 패세($-1.0$)로 수렴시키기 위함입니다. 이를 통해 사용자가 스코어 테이블을 임의로 변경하더라도 MCTS 탐색에서 항상 올바른 스케일의 백업 가치를 전달하게 됩니다.
 
 #### ③ 사전 확률 정책 함수 $P(s, a)$
-MCTS의 확장(Expansion) 단계에서 새로운 자식 노드들에 분배할 확률 분포 $P(s, a)$는 행동 가치 점수를 Softmax를 통해 정규화하여 사용합니다.
+MCTS의 확장(Expansion) 단계에서 새로운 자식 노드들에 분배할 확률 분포 $P(s, a)$는 행동 가치 점수를 바탕으로 거듭제곱 분포 스케일링(Power Scaling)을 통해 정규화하여 사용합니다. 이는 수학적으로 로그 소프트맥스 $\text{Softmax}(\ln(Score(a) + 1.0) / \tau)$와 동일하며, 지수 폭발 및 왜곡 현상(Underflow/Overflow)을 방지합니다.
 
 $$Score(a) = A_a + \beta \cdot D_a$$
 
-$$P(s, a) = \frac{\exp(Score(a) / \tau)}{\sum_{b} \exp(Score(b) / \tau)}$$
+$$P(s, a) = \frac{(Score(a) + 1.0)^{1/\tau}}{\sum_{b} (Score(b) + 1.0)^{1/\tau}}$$
 
-* $A_a$는 본인이 착수했을 때의 공격 점수 증가량, $D_a$는 상대가 두었을 때 차단하게 되는 점수(방어 가치)입니다. $\beta$는 수비 가중치(기본값 1.2)로, 상대방의 공격 흐름을 방어적으로 먼저 차단하도록 설계되었습니다. $\tau$는 정책의 다양성을 조정하는 온도 매개변수(Temperature)입니다.
+* $A_a$는 본인이 착수했을 때의 공격 점수 증가량, $D_a$는 상대가 두었을 때 차단하게 되는 점수(방어 가치)입니다. $\beta$는 수비 가중치(기본값 1.2)로, 상대방의 공격 흐름을 방어적으로 먼저 차단하도록 설계되었습니다. $\tau$는 정책의 다양성을 조정하는 온도 매개변수(Temperature, 기본값 2.0)입니다.
+* 이 파워 스케일링 방식은 초반(최고 점수가 낮을 때)에는 좋은 수와 평범한 수 사이의 점수 차이가 잘 부각되도록 하고, 후반(최고 점수가 50,000~1,000,000으로 매우 높을 때)에는 특정 급소 지점 외의 무의미한 지점에 탐색 낭비가 전혀 없도록 자연스럽게 수렴 및 스케일링을 수행합니다.
 
 ---
 
@@ -142,8 +143,8 @@ $$P(s, a) = \frac{\exp(Score(a) / \tau)}{\sum_{b} \exp(Score(b) / \tau)}$$
    * **예시 후보지 B: `(5,5)` (돌과 멀리 떨어진 허공)**
      * 돌이 근처에 전혀 없어 공격 가치 $A_{\text{(5,5)}} = 1$점, 수비 가치 $D_{\text{(5,5)}} = 0$점입니다.
      * 행동 점수 $Score(\text{5,5}) = 1 + 0 = 1$점.
-3. **Softmax를 통한 정책 분포($P(s, a)$) 생성**:
-   * 계산된 점수들에 Softmax를 적용합니다. 이 과정을 거쳐 돌들이 모여 있는 요충지 `(9,10)`, `(10,11)`, `(10,9)` 등은 높은 사전 확률($P \approx 0.15$)을 배정받고, 뜬금없는 빈 자리인 `(5,5)` 등은 아주 낮은 확률($P \approx 0.0001$)을 얻어 자연스럽게 가지치기(가지 수 축소)가 됩니다.
+3. **파워 스케일링을 통한 정책 분포($P(s, a)$) 생성**:
+   * 계산된 점수들에 거듭제곱 분포 스케일링(Power Scaling, $\tau=2.0$)을 적용합니다. 이 과정을 거쳐 돌들이 모여 있는 요충지 `(9,10)` 등은 높은 사전 확률($P \approx 0.013$, 구석 대비 약 14.4배 높은 확률)을 배정받고, 뜬금없는 빈 자리인 `(5,5)` 등은 매우 낮은 확률($P \approx 0.0009$)을 얻어 효율적으로 탐색 가지가 선별됩니다.
 4. **리프 노드 가치 평가 ($V(s)$)**:
    * 현재 리프 노드의 보드 상태에서 흑과 백의 가치 합 차이를 구합니다. 흑은 열린 1목(1점), 백은 열린 1목(1점) 상태로 팽팽합니다.
    * 두 플레이어의 점수 차이가 거의 없으므로 $Score_{\text{self}} - Score_{\text{opp}} \approx 0$이며, 가치 평가는 다음과 같습니다:
@@ -333,7 +334,7 @@ extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int
             } else {
                 // 휴리스틱 스코어를 계산하여 우선순위 분포 확률을 정책으로 적용
                 double prior_prob[BOARD_SIZE * BOARD_SIZE] = {0.0};
-                get_heuristic_policy_cpp(sim_board, legal_actions, num_legal, player, defense_weight_f, tau_f, prior_prob);
+                get_heuristic_policy_cpp(sim_board, legal_actions, num_legal, player, defense_weight_f, tau_f, prior_prob, score_table);
                 
                 // 전역 노드 풀 메모리 할당 및 자식 노드 확장
                 if (node_counter + num_legal < MAX_NODES) {

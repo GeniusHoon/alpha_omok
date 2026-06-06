@@ -142,11 +142,11 @@ MCTS의 확장(Expansion) 단계에서 임의의 후보 착수점 $a$에 대해 
    
    $$Score(a) = A_a + \beta \cdot D_a$$
 
-3. 이를 Softmax 함수를 통과시켜 모든 합이 1.0이 되도록 확률 분포로 만듭니다.
+3. 이를 거듭제곱 분포 스케일링(Power Scaling)을 통해 정규화하여 모든 합이 1.0이 되도록 확률 분포로 만듭니다. (수학적으로 로그 소프트맥스 $\text{Softmax}(\ln(Score(a) + 1.0) / \tau)$와 동일하며, 지수 오버플로우/언더플로우를 방지하고 초반과 종반 탐색을 유연하게 연결합니다)
    
-   $$P(s, a) = \frac{\exp(Score(a) / \tau)}{\sum_{b \in \text{LegalActions}} \exp(Score(b) / \tau)}$$
+   $$P(s, a) = \frac{(Score(a) + 1.0)^{1/\tau}}{\sum_{b \in \text{LegalActions}} (Score(b) + 1.0)^{1/\tau}}$$
 
-*여기서 $\tau$는 탐색의 다양성을 제어하는 온도 매개변수(Temperature)입니다. 이를 통해 AI가 가장 점수가 높은 공격/방어 포인트 위주로 MCTS Tree의 가지치기를 매우 좁고 깊게 수행(Selection)하여, 3초 이내에 수읽기 깊이를 극대화할 수 있습니다.*
+*여기서 $\tau$는 탐색의 다양성을 제어하는 온도 매개변수(Temperature, 기본값 2.0)입니다. 이를 통해 AI가 가장 점수가 높은 공격/방어 포인트 위주로 MCTS Tree의 가지치기를 매우 좁고 깊게 수행(Selection)하여, 3초 이내에 수읽기 깊이를 극대화할 수 있습니다.*
 
 ---
 
