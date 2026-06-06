@@ -361,11 +361,12 @@ void get_heuristic_policy_cpp(const int* board, const int* legal_actions, int nu
         if (scores[action] > max_score) max_score = scores[action];
     }
     
+    double scale = (score_table != nullptr && score_table[0] > 0) ? static_cast<double>(score_table[0]) : 1000000.0;
     double sum_exp = 0.0;
     double exp_scores[BOARD_SIZE * BOARD_SIZE] = {0.0};
     for (int idx_act = 0; idx_act < num_legal; ++idx_act) {
         int action = legal_actions[idx_act];
-        exp_scores[action] = std::exp((scores[action] - max_score) / tau);
+        exp_scores[action] = std::exp((scores[action] - max_score) / (scale * tau));
         sum_exp += exp_scores[action];
     }
     
@@ -561,6 +562,7 @@ extern "C" __declspec(dllexport) int mcts_search_cpp(const int* start_board, int
     int max_visits = -1;
     int first_child = node_pool[root_idx].first_child_idx;
     int num_children = node_pool[root_idx].num_children;
+    
     for (int i = 0; i < num_children; ++i) {
         int child_idx = first_child + i;
         if (node_pool[child_idx].visit_count > max_visits) {

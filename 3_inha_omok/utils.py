@@ -354,7 +354,7 @@ def augment_dataset(memory, board_size):
     return aug_dataset
 
 
-DEFAULT_SCORES = [100000, 100000, 20000, 5000, 1000, 100, 100, 1]
+DEFAULT_SCORES = [1000000, 100000, 20000, 5000, 1000, 100, 100, 1]
 
 def evaluate_board(board, player, score_table=None):
     """
@@ -581,7 +581,13 @@ def get_heuristic_policy(board, legal_actions, player, score_table=None):
     
     # Temperature tau = 2.0. Smoothes probabilities slightly to allow MCTS exploration.
     tau = 2.0
-    exp_scores = np.exp((legal_scores - max_score) / tau)
+    
+    # Scale scores by the maximum score in the score table to prevent underflow
+    scale = float(score_table[0]) if score_table is not None else 1000000.0
+    if scale <= 0:
+        scale = 1.0
+        
+    exp_scores = np.exp((legal_scores - max_score) / (scale * tau))
     sum_exp = np.sum(exp_scores)
     
     if sum_exp > 0:
