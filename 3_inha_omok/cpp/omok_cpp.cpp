@@ -354,22 +354,29 @@ void get_heuristic_policy_cpp(const int* board, const int* legal_actions, int nu
         scores[action] = attack + defense_weight * defense;
     }
     
-    // Power scaling: (scores[action] + 1.0) ** (1.0 / tau) to translate scores to probabilities.
-    // Mathematically equivalent to softmax(ln(scores + 1.0) / tau).
-    double sum_weights = 0.0;
-    double weights[BOARD_SIZE * BOARD_SIZE] = {0.0};
-    double inv_tau = 1.0 / tau;
+    // Apply softmax with temperature scaling to translate scores to probabilities.
+    // To prevent numeric overflow, we subtract the max score first.
+    double max_score = -1e9;
     for (int idx_act = 0; idx_act < num_legal; ++idx_act) {
         int action = legal_actions[idx_act];
-        weights[action] = std::pow(scores[action] + 1.0, inv_tau);
-        sum_weights += weights[action];
+        if (scores[action] > max_score) {
+            max_score = scores[action];
+        }
+    }
+    
+    double sum_exp = 0.0;
+    double exp_scores[BOARD_SIZE * BOARD_SIZE] = {0.0};
+    for (int idx_act = 0; idx_act < num_legal; ++idx_act) {
+        int action = legal_actions[idx_act];
+        exp_scores[action] = std::exp((scores[action] - max_score) / tau);
+        sum_exp += exp_scores[action];
     }
     
     std::fill(out_probs, out_probs + BOARD_SIZE * BOARD_SIZE, 0.0);
     for (int idx_act = 0; idx_act < num_legal; ++idx_act) {
         int action = legal_actions[idx_act];
-        if (sum_weights > 0.0) {
-            out_probs[action] = weights[action] / sum_weights;
+        if (sum_exp > 0.0) {
+            out_probs[action] = exp_scores[action] / sum_exp;
         } else {
             out_probs[action] = 1.0 / num_legal;
         }

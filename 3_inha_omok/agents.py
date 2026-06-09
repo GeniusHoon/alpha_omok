@@ -3,14 +3,9 @@ import time
 import threading
 
 import numpy as np
-import torch
 
 import utils
 
-
-PRINT_MCTS = True
-use_cuda = torch.cuda.is_available()
-device = torch.device('cuda' if use_cuda else 'cpu')
 
 class Agent(object):
     def __init__(self, board_size):
@@ -208,6 +203,8 @@ class HeuristicMCTS(Agent):
         print('tree depth:', 0 if max_len <= 0 else max_len - 1)
 
 
+
+
 class CppHeuristicMCTS(Agent):
     def __init__(self, board_size, num_mcts, obstacles=[], score_table=None):
         super(CppHeuristicMCTS, self).__init__(board_size)
@@ -266,5 +263,8 @@ class CppHeuristicMCTS(Agent):
 
     def del_parents(self, root_id):
         pass
+
+
+
 
 

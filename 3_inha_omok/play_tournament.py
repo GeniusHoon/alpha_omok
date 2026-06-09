@@ -1,8 +1,9 @@
-# AI Tournament and Matchmaking Simulator
+# AI Tournament and Matchmaking Simulator (Multi-Threaded)
 import sys
 import os
 import time
 import numpy as np
+import json
 import multiprocessing
 
 # Adjust path to import local modules
@@ -12,16 +13,65 @@ from env import env_competition as game
 import utils
 import agents
 
-# Pre-defined configurations
+# Pre-defined configurations matching all evaluated algorithms
 ALGORITHMS = {
-    '1': {'name': 'C++ Standard MCTS (C_puct=3.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '2': {'name': 'C++ Aggressive MCTS (C_puct=3.0, Def=1.0, Sims=6000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.0},
-    '3': {'name': 'C++ Defensive MCTS (C_puct=3.0, Def=1.5, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 3.0, 'defense_weight': 1.5},
-    '4': {'name': 'C++ Low Expl MCTS (C_puct=1.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 1.0, 'defense_weight': 1.2},
-    '5': {'name': 'C++ High Expl MCTS (C_puct=5.0, Def=1.2, Sims=2000)', 'type': 'cpp', 'num_mcts': 2000, 'c_puct': 5.0, 'defense_weight': 1.2},
-    '6': {'name': 'C++ High Sims MCTS (C_puct=3.0, Def=1.2, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2},
-    '7': {'name': 'C++ VCF-focused MCTS (Boosted 4s, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 100000, 20000, 30000, 1000, 100, 100, 1]},
-    '8': {'name': 'C++ VCF-focused MCTS2 (Boosted 4s, Sims=4000)', 'type': 'cpp', 'num_mcts': 4000, 'c_puct': 3.0, 'defense_weight': 1.2, 'score_table': [100000, 100000, 30000, 20000, 1000, 100, 100, 1]}
+    '1': {
+        'name': 'Legacy C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [100000, 10000, 1000, 1000, 100, 100, 10, 1]
+    },
+    '2': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=10:1)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 100000, 10000, 10000, 1000, 100, 10, 1]
+    },
+    '3': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=Balanced)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 100000, 20000, 5000, 500, 100, 10, 1]
+    },
+    '4': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=ttt)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 100000, 20000, 5000, 1000, 100, 10, 1]
+    },
+    '5': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=Aggressive_Attack)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 200000, 10000, 20000, 1000, 500, 10, 1]
+    },
+    '6': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=Iron_Wall_Defensive)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 100000, 40000, 5000, 3000, 200, 50, 1]
+    },
+    '7': {
+        'name': 'Current C++ High Sims (C_puct=3.0, Def=1.2, Sims=4000, Scores=Fibonacci_Exponential)',
+        'type': 'cpp',
+        'num_mcts': 4000,
+        'c_puct': 3.0,
+        'defense_weight': 1.2,
+        'score_table': [1000000, 80000, 20000, 5000, 1000, 200, 50, 1]
+    },
+
 }
 
 def create_agent(cfg, board_size, obstacles):
@@ -33,6 +83,7 @@ def create_agent(cfg, board_size, obstacles):
         agent = agents.CppHeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles, score_table=score_table)
     else:
         agent = agents.HeuristicMCTS(board_size=board_size, num_mcts=cfg['num_mcts'], obstacles=obstacles, score_table=score_table)
+            
     agent.c_puct = cfg['c_puct']
     agent.defense_weight = cfg['defense_weight']
     return agent
@@ -40,6 +91,7 @@ def create_agent(cfg, board_size, obstacles):
 def play_single_match(cfg_black, cfg_white, obstacles_coords, obstacles_actions):
     """
     Plays a fast match without console output for tournament processing.
+    Returns: (win_index, history_list)
     """
     env = game.GameState(obstacles=obstacles_coords)
     black_agent = create_agent(cfg_black, 19, obstacles_actions)
@@ -61,31 +113,31 @@ def play_single_match(cfg_black, cfg_white, obstacles_coords, obstacles_actions)
         board, _, win_index, turn, _ = env.step(action_index)
         root_id += (action_index,)
         
-    return win_index
+    return win_index, list(root_id)
 
 def tournament_worker(task):
     """
     Worker function for parallelized tournament matches.
     """
-    id_a, cfg_a, id_b, cfg_b, game_id = task
+    black_id, black_cfg, white_id, white_cfg, game_id = task
     
     # Generate random obstacles
     obstacles_coords = []
     while len(obstacles_coords) < 3:
-        rx = np.random.randint(1, 20)
-        ry = np.random.randint(1, 20)
+        rx = int(np.random.randint(1, 20))
+        ry = int(np.random.randint(1, 20))
         if (rx, ry) != (10, 10) and (rx, ry) not in obstacles_coords:
             obstacles_coords.append((rx, ry))
     obstacles_actions = [game.coord_to_action(x, y) for x, y in obstacles_coords]
     
-    # Run two games with roles swapped to ensure symmetry
-    res1 = play_single_match(cfg_a, cfg_b, obstacles_coords, obstacles_actions) # A: Black, B: White
-    res2 = play_single_match(cfg_b, cfg_a, obstacles_coords, obstacles_actions) # B: Black, A: White
-    
-    return id_a, id_b, res1, res2
+    try:
+        res, _ = play_single_match(black_cfg, white_cfg, obstacles_coords, obstacles_actions)
+        return black_id, white_id, res, None
+    except Exception as e:
+        return black_id, white_id, None, str(e)
 
 def configure_custom_agent():
-    print("\n[사용자 정의 알고리즘 설정]")
+    print("\n[사용자 정의 에이전트 설정]")
     while True:
         mode = input("에이전트 타입 선택 (1: C++ DLL 사용, 2: Pure Python): ").strip()
         if mode in ['1', '2']:
@@ -143,7 +195,7 @@ def configure_custom_agent():
         else:
             print("[에러] y 또는 n을 입력하세요.")
             
-    name_str = f'Custom (Type={agent_type.upper()}, Sims={sims}, C_puct={c_puct}, Def={def_w}'
+    name_str = f'Custom ({agent_type.upper()}, Sims={sims}, C_puct={c_puct}, Def={def_w}'
     if score_table is not None:
         name_str += f', DynamicScores'
     name_str += ')'
@@ -153,42 +205,90 @@ def configure_custom_agent():
         'type': agent_type,
         'num_mcts': sims,
         'c_puct': c_puct,
-        'defense_weight': def_w
+        'defense_weight': def_w,
+        'legacy': is_legacy,
+        'score_table': score_table
     }
 
 def print_registered_algorithms():
-    print("\n" + "-" * 60)
+    print("\n" + "-" * 75)
     print(" 등록된 알고리즘 리스트")
-    print("-" * 60)
+    print("-" * 75)
     for key, cfg in ALGORITHMS.items():
         print(f" {key}: {cfg['name']}")
-    print("-" * 60)
+    print("-" * 75)
 
 def main():
+    import sys
+    is_auto = "--auto" in sys.argv
+    
     print("=" * 60)
-    print(" 오목 AI 알고리즘 대전 및 선별 시뮬레이터")
+    print(" 오목 AI 알고리즘 대전 및 선별 시뮬레이터 (Single-Threaded)")
     print("=" * 60)
     
-    # Mode selection
-    while True:
-        print("\n[대국 방식 선택]")
-        print(" 1: 1대1 맞대결 (Head-to-Head) - 콘솔 바둑판 렌더링 시각화 포함")
-        print(" 2: 전체 리그전 토너먼트 (Round-Robin League) - 멀티프로세싱 고속 연산")
-        choice = input("선택 (1 또는 2): ").strip()
-        if choice in ['1', '2']:
-            break
-        print("[에러] 1 또는 2를 입력하세요.")
-        
-    # User custom algorithm registration option
-    print_registered_algorithms()
-    cust_choice = input("사용자 정의 파라미터 알고리즘을 추가로 등록하시겠습니까? (y/n): ").strip().lower()
-    if cust_choice == 'y':
-        custom_cfg = configure_custom_agent()
-        new_key = str(len(ALGORITHMS) + 1)
-        ALGORITHMS[new_key] = custom_cfg
-        print(f"\n[알림] 알고리즘 {new_key}번으로 등록되었습니다.")
+    if is_auto:
+        choice = '2'
+        cust_choice = 'n'
+    else:
+        # Mode selection
+        while True:
+            print("\n[대국 방식 선택]")
+            print(" 1: 1대1 맞대결 (Head-to-Head) - 콘솔 바둑판 렌더링 시각화 포함 (매 게임 저장)")
+            print(" 2: 전체 리그전 토너먼트 (Round-Robin League) - 싱글스레드 순차 진행 (매 게임 저장)")
+            choice = input("선택 (1 또는 2): ").strip()
+            if choice in ['1', '2']:
+                break
+            print("[에러] 1 또는 2를 입력하세요.")
+            
+        # User custom algorithm registration option
         print_registered_algorithms()
+        cust_choice = input("사용자 정의 파라미터 알고리즘을 추가로 등록하시겠습니까? (y/n): ").strip().lower()
+        if cust_choice == 'y':
+            custom_cfg = configure_custom_agent()
+            new_key = str(len(ALGORITHMS) + 1)
+            ALGORITHMS[new_key] = custom_cfg
+            print(f"\n[알림] 알고리즘 {new_key}번으로 등록되었습니다.")
+            print_registered_algorithms()
         
+    # Setup results path
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_file = os.path.join(script_dir, "tournament_results.json")
+    
+    # Load existing results or initialize fresh list
+    tournament_games = []
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    tournament_games = json.loads(content)
+            print(f"[알림] 기존 대국 데이터 {len(tournament_games)}개를 로드했습니다.")
+        except Exception as e:
+            print(f"[경고] 기존 결과 파일을 읽는 데 실패했습니다 ({e}). 새로 시작합니다.")
+            tournament_games = []
+            
+    # Ask whether to clear or append
+    if is_auto:
+        tournament_games = []
+        with open(results_file, "w", encoding="utf-8") as f:
+            json.dump([], f)
+    elif tournament_games:
+        while True:
+            clear_choice = input("기존 대국 결과를 초기화하고 새로 시작하시겠습니까? (y/n): ").strip().lower()
+            if clear_choice == 'y':
+                tournament_games = []
+                with open(results_file, "w", encoding="utf-8") as f:
+                    json.dump([], f)
+                print("[알림] 기존 대국 결과를 초기화했습니다.")
+                break
+            elif clear_choice == 'n':
+                print("[알림] 기존 대국 결과 뒤에 이어서 기록합니다.")
+                break
+            print("[에러] y 또는 n을 입력하세요.")
+    else:
+        with open(results_file, "w", encoding="utf-8") as f:
+            json.dump([], f)
+            
     if choice == '1':
         # Head to Head Mode
         print("\n[1대1 맞대결 모드 설정]")
@@ -241,8 +341,8 @@ def main():
             # Generate random obstacles
             obstacles_coords = []
             while len(obstacles_coords) < 3:
-                rx = np.random.randint(1, 20)
-                ry = np.random.randint(1, 20)
+                rx = int(np.random.randint(1, 20))
+                ry = int(np.random.randint(1, 20))
                 if (rx, ry) != (10, 10) and (rx, ry) not in obstacles_coords:
                     obstacles_coords.append((rx, ry))
             obstacles_actions = [game.coord_to_action(x, y) for x, y in obstacles_coords]
@@ -294,10 +394,10 @@ def main():
             print("-" * 60)
             if win_index == 1:
                 winner = p_black_name
-                print(f"★ {winner} 승리! (흑돌)")
+                print(f"★ {winner} 승리! (흑돌: {black_cfg['name']})")
             elif win_index == 2:
                 winner = p_white_name
-                print(f"★ {winner} 승리! (백돌)")
+                print(f"★ {winner} 승리! (백돌: {white_cfg['name']})")
             else:
                 winner = "Draw"
                 print("★ 무승부!")
@@ -308,6 +408,32 @@ def main():
                 stats['B_win'] += 1
             else:
                 stats['Draw'] += 1
+                
+            # Save this game immediately to JSON
+            if win_index == 1:
+                winner_text = black_cfg['name']
+            elif win_index == 2:
+                winner_text = white_cfg['name']
+            else:
+                winner_text = "Draw"
+                
+            game_record = {
+                "game_id": len(tournament_games) + 1,
+                "black_name": black_cfg['name'],
+                "white_name": white_cfg['name'],
+                "winner": winner_text,
+                "win_index": int(win_index),
+                "history": [int(x) for x in root_id],
+                "obstacles": [[int(cx), int(cy)] for cx, cy in obstacles_coords]
+            }
+            tournament_games.append(game_record)
+            
+            try:
+                with open(results_file, "w", encoding="utf-8") as f:
+                    json.dump(tournament_games, f, ensure_ascii=False, indent=2)
+                print(f"[알림] 대국 {len(tournament_games)} 저장 완료 -> {results_file}")
+            except Exception as e:
+                print(f"[에러] 대국 저장 중 오류 발생: {e}")
                 
         print("\n" + "=" * 60)
         print(" 1대1 맞대결 결과 요약")
@@ -322,30 +448,42 @@ def main():
         print("=" * 60)
         
     else:
-        # League Tournament Mode
+        # League Tournament Mode (Round-Robin)
         print("\n[전체 리그전 토너먼트 모드 설정]")
-        while True:
-            try:
-                pairs_matches = int(input("매치 매칭 당 게임 세트 수 입력 (짝수 권장, 예: 2 또는 4): ").strip())
-                if pairs_matches >= 1:
-                    break
-                print("[에러] 1판 이상이어야 합니다.")
-            except ValueError:
-                print("[에러] 정수를 입력하세요.")
+        if is_auto:
+            pairs_matches = 6
+        else:
+            while True:
+                try:
+                    pairs_matches = int(input("매치 매칭 당 게임 세트 수 입력 (짝수 권장, 예: 2 또는 4): ").strip())
+                    if pairs_matches >= 1:
+                        break
+                    print("[에러] 1판 이상이어야 합니다.")
+                except ValueError:
+                    print("[에러] 정수를 입력하세요.")
                 
         # Generate tournament tasks
         keys = sorted(list(ALGORITHMS.keys()), key=int)
+        
+        # Generate tasks: each task is a single game matching
         tasks = []
         for i in range(len(keys)):
             for j in range(i + 1, len(keys)):
-                for g in range(pairs_matches // 2 + 1 if pairs_matches % 2 != 0 else pairs_matches // 2):
-                    tasks.append((keys[i], ALGORITHMS[keys[i]], keys[j], ALGORITHMS[keys[j]], g))
-                    
-        num_tasks = len(tasks)
-        print(f"\n총 대국 매칭 작업 수: {num_tasks}개 (각 작업당 흑/백 대칭으로 2판씩 진행, 총 {num_tasks * 2}판)")
-        
+                id_a = keys[i]
+                id_b = keys[j]
+                cfg_a = ALGORITHMS[id_a]
+                cfg_b = ALGORITHMS[id_b]
+                for g in range(pairs_matches):
+                    if g % 2 == 0:
+                        # A is Black, B is White
+                        tasks.append((id_a, cfg_a, id_b, cfg_b, len(tasks) + 1))
+                    else:
+                        # B is Black, A is White
+                        tasks.append((id_b, cfg_b, id_a, cfg_a, len(tasks) + 1))
+                        
+        total_games = len(tasks)
         num_cores = multiprocessing.cpu_count()
-        print(f"멀티프로세싱 병렬화 구동 (CPU 코어 수: {num_cores}개)")
+        print(f"\n총 대국 수: {total_games}판 (멀티프로세싱 병렬화 구동, CPU 코어 수: {num_cores}개)")
         
         start_time = time.time()
         
@@ -360,47 +498,34 @@ def main():
         completed = 0
         
         try:
-            for id_a, id_b, res1, res2 in pool.imap_unordered(tournament_worker, tasks):
+            for black_id, white_id, res, err in pool.imap_unordered(tournament_worker, tasks):
                 completed += 1
                 sys.stdout.write(
-                    f"\r토너먼트 진행도: {completed * 2}/{num_tasks * 2} 판 완료 ({completed * 100.0 / num_tasks:.1f}%) "
-                    f"| 경과 시간: {time.time() - start_time:.1f}초 | 매치: ID {id_a} vs ID {id_b}      "
+                    f"\r토너먼트 진행도: {completed}/{total_games} 판 완료 ({completed * 100.0 / total_games:.1f}%) "
+                    f"| 경과 시간: {time.time() - start_time:.1f}초"
                 )
                 sys.stdout.flush()
                 
-                # Game 1: A is Black, B is White
-                played[id_a] += 1
-                played[id_b] += 1
-                if res1 == 1:
-                    wins[id_a] += 1
-                    losses[id_b] += 1
-                    points[id_a] += 1.0
-                elif res1 == 2:
-                    wins[id_b] += 1
-                    losses[id_a] += 1
-                    points[id_b] += 1.0
+                if err is not None:
+                    print(f"\n[에러] 대국 중 오류 발생: {err}")
+                    continue
+                
+                played[black_id] += 1
+                played[white_id] += 1
+                
+                if res == 1:
+                    wins[black_id] += 1
+                    losses[white_id] += 1
+                    points[black_id] += 1.0
+                elif res == 2:
+                    wins[white_id] += 1
+                    losses[black_id] += 1
+                    points[white_id] += 1.0
                 else:
-                    draws[id_a] += 1
-                    draws[id_b] += 1
-                    points[id_a] += 0.5
-                    points[id_b] += 0.5
-                    
-                # Game 2: B is Black, A is White
-                played[id_a] += 1
-                played[id_b] += 1
-                if res2 == 1:
-                    wins[id_b] += 1
-                    losses[id_a] += 1
-                    points[id_b] += 1.0
-                elif res2 == 2:
-                    wins[id_a] += 1
-                    losses[id_b] += 1
-                    points[id_a] += 1.0
-                else:
-                    draws[id_a] += 1
-                    draws[id_b] += 1
-                    points[id_a] += 0.5
-                    points[id_b] += 0.5
+                    draws[black_id] += 1
+                    draws[white_id] += 1
+                    points[black_id] += 0.5
+                    points[white_id] += 0.5
         except KeyboardInterrupt:
             print("\n[알림] 사용자에 의해 토너먼트가 중단되었습니다.")
             pool.terminate()
@@ -410,7 +535,7 @@ def main():
             pool.join()
             
         duration = time.time() - start_time
-        print(f"\n\n토너먼트 완료! 소요 시간: {duration:.1f}초 (평균 판당 {duration / (num_tasks * 2):.3f}초)")
+        print(f"\n\n토너먼트 완료! 총 소요 시간: {duration:.1f}초 (평균 판당 {duration / total_games:.3f}초)")
         
         # Rank calculations
         leaderboard = []

@@ -40,6 +40,7 @@ else:
 
 
 
+
 def valid_actions(board):
     actions = []
     count = 0
@@ -574,20 +575,24 @@ def get_heuristic_policy(board, legal_actions, player, score_table=None):
     if not legal_actions:
         return probs
         
-    # Temperature tau = 2.0. Smoothes probabilities slightly to allow MCTS exploration.
-    # We use power scaling: (scores + 1.0) ** (1.0 / tau) to translate scores to probabilities.
-    # Mathematically, this is equivalent to softmax(ln(scores + 1.0) / tau).
-    # This prevents overflow and underflow across all phases of the game.
-    tau = 2.0
+    # Apply softmax with temperature scaling to translate scores to probabilities.
+    # To prevent numeric overflow in np.exp, we subtract the max score first.
     legal_scores = scores[legal_actions]
-    raw_weights = (legal_scores + 1.0) ** (1.0 / tau)
-    sum_weights = np.sum(raw_weights)
+    max_score = np.max(legal_scores)
     
-    if sum_weights > 0:
-        probs[legal_actions] = raw_weights / sum_weights
+    # Temperature tau = 2.0. Smoothes probabilities slightly to allow MCTS exploration.
+    tau = 2.0
+    exp_scores = np.exp((legal_scores - max_score) / tau)
+    sum_exp = np.sum(exp_scores)
+    
+    if sum_exp > 0:
+        probs[legal_actions] = exp_scores / sum_exp
     else:
         probs[legal_actions] = 1.0 / len(legal_actions)
         
     return probs
+
+
+
 
 
